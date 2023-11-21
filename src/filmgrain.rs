@@ -54,7 +54,7 @@ impl generate_grain_y::Fn {
         let buf = (buf as *mut GrainLut<BD::Entry>).cast();
         let data = &data.clone().into();
         let bd = bd.into_c();
-        (self.get())(buf, data, bd)
+        self.get()(buf, data, bd)
     }
 }
 
@@ -80,7 +80,7 @@ impl generate_grain_uv::Fn {
         let data = &data.clone().into();
         let uv = is_uv.into();
         let bd = bd.into_c();
-        (self.get())(buf, buf_y, data, uv, bd)
+        self.get()(buf, buf_y, data, uv, bd)
     }
 }
 
@@ -119,7 +119,7 @@ impl fgy_32x32xn::Fn {
         let bh = bh as c_int;
         let row_num = row_num as c_int;
         let bd = bd.into_c();
-        (self.get())(
+        self.get()(
             dst_row, src_row, stride, data, pw, scaling, grain_lut, bh, row_num, bd,
         )
     }
@@ -171,7 +171,7 @@ impl fguv_32x32xn::Fn {
         let uv_pl = is_uv as c_int;
         let is_id = is_id as c_int;
         let bd = bd.into_c();
-        (self.get())(
+        self.get()(
             dst_row,
             src_row,
             stride,
