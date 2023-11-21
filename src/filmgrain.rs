@@ -13,7 +13,6 @@ use crate::include::dav1d::headers::Rav1dPixelLayoutSubSampled;
 use crate::src::enum_map::enum_map;
 use crate::src::enum_map::enum_map_ty;
 use crate::src::enum_map::DefaultValue;
-use crate::src::enum_map::EnumMap;
 use crate::src::internal::GrainLut;
 use crate::src::tables::dav1d_gaussian_sequence;
 use crate::src::wrap_fn_ptr::wrap_fn_ptr;
