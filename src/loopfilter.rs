@@ -1,5 +1,7 @@
 use crate::include::common::bitdepth::AsPrimitive;
 use crate::include::common::bitdepth::BitDepth;
+use crate::include::common::bitdepth::BitDepth16;
+use crate::include::common::bitdepth::BitDepth8;
 use crate::include::common::bitdepth::DynPixel;
 use crate::include::common::intops::iclip;
 use crate::src::lf_mask::Av1FilterLUT;
@@ -7,6 +9,12 @@ use libc::ptrdiff_t;
 use std::cmp;
 use std::ffi::c_int;
 use std::ffi::c_uint;
+
+#[cfg(feature = "asm")]
+use crate::src::cpu::{rav1d_get_cpu_flags, CpuFlags};
+
+#[cfg(feature = "asm")]
+use cfg_if::cfg_if;
 
 pub type loopfilter_sb_fn = unsafe extern "C" fn(
     *mut DynPixel,
@@ -998,5 +1006,134 @@ unsafe fn loop_filter_v_sb128uv_rust<BD: BitDepth>(
         x <<= 1;
         dst = dst.offset(4);
         l = l.offset(1);
+    }
+}
+
+#[cfg(all(feature = "asm", any(target_arch = "x86", target_arch = "x86_64")))]
+#[inline(always)]
+unsafe fn loop_filter_dsp_init_x86<BD: BitDepth>(c: *mut Rav1dLoopFilterDSPContext) {
+    use crate::include::common::bitdepth::BPC;
+
+    let flags = rav1d_get_cpu_flags();
+
+    if !flags.contains(CpuFlags::SSSE3) {
+        return;
+    }
+    match BD::BPC {
+        BPC::BPC8 => {
+            (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_8bpc_ssse3;
+            (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_8bpc_ssse3;
+            (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_8bpc_ssse3;
+            (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_8bpc_ssse3;
+
+            #[cfg(target_arch = "x86_64")]
+            {
+                if !flags.contains(CpuFlags::AVX2) {
+                    return;
+                }
+
+                (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_8bpc_avx2;
+                (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_8bpc_avx2;
+                (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_8bpc_avx2;
+                (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_8bpc_avx2;
+
+                if !flags.contains(CpuFlags::AVX512ICL) {
+                    return;
+                }
+
+                (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_8bpc_avx512icl;
+                (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_8bpc_avx512icl;
+                (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_8bpc_avx512icl;
+                (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_8bpc_avx512icl;
+            }
+        }
+        BPC::BPC16 => {
+            (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_16bpc_ssse3;
+            (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_16bpc_ssse3;
+            (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_16bpc_ssse3;
+            (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_16bpc_ssse3;
+
+            #[cfg(target_arch = "x86_64")]
+            {
+                if !flags.contains(CpuFlags::AVX2) {
+                    return;
+                }
+
+                (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_16bpc_avx2;
+                (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_16bpc_avx2;
+                (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_16bpc_avx2;
+                (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_16bpc_avx2;
+
+                if !flags.contains(CpuFlags::AVX512ICL) {
+                    return;
+                }
+
+                (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_16bpc_avx512icl;
+                (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_16bpc_avx512icl;
+                (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_16bpc_avx512icl;
+                (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_16bpc_avx512icl;
+            }
+        }
+    }
+}
+
+#[cfg(all(feature = "asm", any(target_arch = "arm", target_arch = "aarch64")))]
+#[inline(always)]
+unsafe fn loop_filter_dsp_init_arm<BD: BitDepth>(c: *mut Rav1dLoopFilterDSPContext) {
+    use crate::include::common::bitdepth::BPC;
+
+    let flags = rav1d_get_cpu_flags();
+
+    if !flags.contains(CpuFlags::NEON) {
+        return;
+    }
+
+    match BD::BPC {
+        BPC::BPC8 => {
+            (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_8bpc_neon;
+            (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_8bpc_neon;
+            (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_8bpc_neon;
+            (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_8bpc_neon;
+        }
+        BPC::BPC16 => {
+            (*c).loop_filter_sb[0][0] = dav1d_lpf_h_sb_y_16bpc_neon;
+            (*c).loop_filter_sb[0][1] = dav1d_lpf_v_sb_y_16bpc_neon;
+            (*c).loop_filter_sb[1][0] = dav1d_lpf_h_sb_uv_16bpc_neon;
+            (*c).loop_filter_sb[1][1] = dav1d_lpf_v_sb_uv_16bpc_neon;
+        }
+    }
+}
+
+#[cold]
+pub unsafe fn rav1d_loop_filter_dsp_init_8bpc(c: *mut Rav1dLoopFilterDSPContext) {
+    (*c).loop_filter_sb[0][0] = loop_filter_h_sb128y_c_erased::<BitDepth8>;
+    (*c).loop_filter_sb[0][1] = loop_filter_v_sb128y_c_erased::<BitDepth8>;
+    (*c).loop_filter_sb[1][0] = loop_filter_h_sb128uv_c_erased::<BitDepth8>;
+    (*c).loop_filter_sb[1][1] = loop_filter_v_sb128uv_c_erased::<BitDepth8>;
+
+    #[cfg(feature = "asm")]
+    cfg_if! {
+        if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
+            loop_filter_dsp_init_x86::<BitDepth8>(c);
+        } else if #[cfg(any(target_arch = "arm", target_arch = "aarch64"))] {
+            loop_filter_dsp_init_arm::<BitDepth8>(c);
+        }
+    }
+}
+
+#[cold]
+pub unsafe fn rav1d_loop_filter_dsp_init_16bpc(c: *mut Rav1dLoopFilterDSPContext) {
+    (*c).loop_filter_sb[0][0] = loop_filter_h_sb128y_c_erased::<BitDepth16>;
+    (*c).loop_filter_sb[0][1] = loop_filter_v_sb128y_c_erased::<BitDepth16>;
+    (*c).loop_filter_sb[1][0] = loop_filter_h_sb128uv_c_erased::<BitDepth16>;
+    (*c).loop_filter_sb[1][1] = loop_filter_v_sb128uv_c_erased::<BitDepth16>;
+
+    #[cfg(feature = "asm")]
+    cfg_if! {
+        if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
+            loop_filter_dsp_init_x86::<BitDepth16>(c);
+        } else if #[cfg(any(target_arch = "arm", target_arch = "aarch64"))] {
+            loop_filter_dsp_init_arm::<BitDepth16>(c);
+        }
     }
 }

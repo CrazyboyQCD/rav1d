@@ -245,15 +245,14 @@ use std::sync::atomic::Ordering;
 use crate::{
     include::common::bitdepth::BitDepth8, src::cdef_tmpl_8::rav1d_cdef_dsp_init_8bpc,
     src::ipred_tmpl_8::rav1d_intra_pred_dsp_init_8bpc, src::itx_tmpl_8::rav1d_itx_dsp_init_8bpc,
-    src::loopfilter_tmpl_8::rav1d_loop_filter_dsp_init_8bpc,
+    src::loopfilter::rav1d_loop_filter_dsp_init_8bpc,
 };
 
 #[cfg(feature = "bitdepth_16")]
 use crate::{
     include::common::bitdepth::BitDepth16, src::cdef_tmpl_16::rav1d_cdef_dsp_init_16bpc,
     src::ipred_tmpl_16::rav1d_intra_pred_dsp_init_16bpc,
-    src::itx_tmpl_16::rav1d_itx_dsp_init_16bpc,
-    src::loopfilter_tmpl_16::rav1d_loop_filter_dsp_init_16bpc,
+    src::itx_tmpl_16::rav1d_itx_dsp_init_16bpc, src::loopfilter::rav1d_loop_filter_dsp_init_16bpc,
 };
 
 fn init_quant_tables(
